@@ -1,4 +1,4 @@
-module romnibus
+module  github.com/UncleJunVIP/ROMnibus
 
 go 1.24
 
