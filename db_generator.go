@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"romnibus/models"
+	"romnibus/utils"
 	"strings"
 )
 
@@ -27,7 +28,7 @@ func main() {
 	_ = os.Remove(databaseFilename)
 	_, _ = os.Create(databaseFilename)
 
-	db, err := sql.Open("sqlite3", databaseFilename)
+	db, err := utils.InitDB(databaseFilename)
 	if err != nil {
 		panic(err)
 	}
