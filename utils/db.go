@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"romnibus/models"
+	"github.com/UncleJunVIP/ROMnibus/models"
 )
 
 var db *sql.DB
@@ -20,7 +20,7 @@ func CloseDB() error {
 	return db.Close()
 }
 
-func FindByHash(db *sql.DB, hash string) (*models.Game, error) {
+func FindByHash(hash string) (*models.Game, error) {
 	if db == nil {
 		return nil, errors.New("database is not initialized")
 	}
@@ -39,7 +39,7 @@ func FindByHash(db *sql.DB, hash string) (*models.Game, error) {
 	return &game, nil
 }
 
-func FindByFilename(db *sql.DB, filename string) (*models.Game, error) {
+func FindByFilename(filename string) (*models.Game, error) {
 	if db == nil {
 		return nil, errors.New("database is not initialized")
 	}
