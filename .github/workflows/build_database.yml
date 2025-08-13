@@ -85,6 +85,15 @@ jobs:
           sqlite3 "$DATABASE_NAME" "SELECT COUNT(*) FROM games;" > /dev/null
           echo "✅ Database integrity check passed"
 
+      - name: Compress database files
+        run: |
+          echo "🗜️ Compressing database files..."
+          
+          zip -9 "$DATABASE_NAME.zip" "$DATABASE_NAME"
+          
+          echo "📦 Compression results:"
+          ls -lh "$DATABASE_NAME"*
+
       - name: Generate release information
         id: release-info
         if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
@@ -131,24 +140,10 @@ jobs:
           # Upload all database formats
           echo "📤 Uploading database files..."
           gh release upload "${{ steps.release-info.outputs.tag }}" \
-            "$DATABASE_NAME" \
-            "$DATABASE_NAME.gz" \
             "$DATABASE_NAME.zip" \
-            "$DATABASE_NAME.tar.gz" \
             --clobber
           
           echo "✅ Release created successfully!"
           echo "🔗 Release URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release-info.outputs.tag }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: romnibus-database
-          path: |
-            ${{ env.DATABASE_NAME }}
-          if-no-files-found: error
-          retention-days: 30
-          compression-level: 9
