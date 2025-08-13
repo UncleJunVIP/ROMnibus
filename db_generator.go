@@ -4,32 +4,38 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
-	"hashymchashface/models"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"romnibus/models"
 	"strings"
 )
 
 const (
 	repoURL          = "https://github.com/libretro/libretro-database.git"
-	datDir           = "metadat/no-intro"
 	tempDir          = "temp_libretro_db"
-	databaseFilename = "hash_database.sqlite"
+	databaseFilename = "ROMnibus.sqlite"
 )
 
+var datDirs = []string{
+	"metadat/no-intro",
+	"metadat/fbneo-split",
+}
+
 func main() {
-	os.Remove(databaseFilename)
-	os.Create(databaseFilename)
+	_ = os.Remove(databaseFilename)
+	_, _ = os.Create(databaseFilename)
 
 	db, err := sql.Open("sqlite3", databaseFilename)
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
 
-	initDBSchema(db)
+	_ = initDBSchema(db)
 	populateDB(db)
 }
 
@@ -53,7 +59,9 @@ func populateDB(db *sql.DB) {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	gameMap := make(map[string][]models.Game)
 
@@ -85,7 +93,7 @@ func populateDB(db *sql.DB) {
 }
 
 func downloadDATFiles() ([]string, error) {
-	os.RemoveAll(tempDir)
+	_ = os.RemoveAll(tempDir)
 
 	fmt.Println("Cloning libretro-database repository...")
 
@@ -94,27 +102,32 @@ func downloadDATFiles() ([]string, error) {
 		return nil, fmt.Errorf("failed to clone repository: %w", err)
 	}
 
-	datPath := filepath.Join(tempDir, datDir)
-
-	if _, err := os.Stat(datPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("directory %s does not exist in repository", datDir)
-	}
-
 	var datFiles []string
-	err := filepath.Walk(datPath, func(path string, info os.FileInfo, err error) error {
+
+	for _, datDir := range datDirs {
+		fmt.Printf("Processing directory %s...\n", datDir)
+
+		datPath := filepath.Join(tempDir, datDir)
+
+		if _, err := os.Stat(datPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("directory %s does not exist in repository", datDir)
+		}
+
+		err := filepath.Walk(datPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".dat") {
+				datFiles = append(datFiles, path)
+			}
+
+			return nil
+		})
+
 		if err != nil {
-			return err
+			fmt.Printf("Error walking directory %s: %v\n", datDir, err)
 		}
-
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".dat") {
-			datFiles = append(datFiles, path)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to find DAT files: %w", err)
 	}
 
 	fmt.Printf("Found %d DAT files\n", len(datFiles))
@@ -147,23 +160,28 @@ func parseDAT(filename string, platform string) ([]models.Game, error) {
 	var parsedGames []models.Game
 	fileContent := string(content)
 
-	gameBlockRegex := regexp.MustCompile(`(?s)game\s*\(\s*name\s+"([^"]+)"[^}]*?rom\s*\([^}]*?sha1\s+([a-fA-F0-9]{40})[^}]*?\)\s*\)`)
+	gameBlockRegex := regexp.MustCompile(`(?s)game\s*\(\s*name\s+"([^"]+)"[^}]*?rom\s*\([^}]*?name\s+([^\s]+)[^}]*?sha1\s+([a-fA-F0-9]{40})[^}]*?\)\s*\)`)
 
 	matches := gameBlockRegex.FindAllStringSubmatch(fileContent, -1)
 
 	for _, match := range matches {
-		if len(match) >= 3 {
+		if len(match) >= 4 {
 			gameName := match[1]
-			sha1Hash := match[2]
+			filename := match[2]
+			sha1Hash := match[3]
 
-			if gameName != "" && sha1Hash != "" {
-				gameEntry := models.Game{
-					Name:     gameName,
-					Platform: platform,
-					Hash:     strings.ToLower(sha1Hash),
-				}
-				parsedGames = append(parsedGames, gameEntry)
+			if strings.HasPrefix(filename, "\"") {
+				filename = ""
 			}
+
+			gameEntry := models.Game{
+				Name:     gameName,
+				Filename: filename,
+				Platform: platform,
+				Hash:     strings.ToLower(sha1Hash),
+			}
+
+			parsedGames = append(parsedGames, gameEntry)
 		}
 	}
 
@@ -175,19 +193,23 @@ func insertGames(db *sql.DB, games []models.Game) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func(tx *sql.Tx) {
+		_ = tx.Rollback()
+	}(tx)
 
 	stmt, err := tx.Prepare(`
-		INSERT OR IGNORE INTO games (name, platform, hash) 
-		VALUES (?, ?, ?)
+		INSERT OR IGNORE INTO games (name, filename, platform, hash) 
+		VALUES (?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func(stmt *sql.Stmt) {
+		_ = stmt.Close()
+	}(stmt)
 
 	for _, game := range games {
-		_, err := stmt.Exec(game.Name, game.Platform, game.Hash)
+		_, err := stmt.Exec(game.Name, game.Filename, game.Platform, game.Hash)
 		if err != nil {
 			return fmt.Errorf("failed to insert game %s: %w", game.Name, err)
 		}

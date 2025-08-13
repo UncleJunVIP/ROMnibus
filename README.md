@@ -1,4 +1,3 @@
-# HashyMcHashFace
+# ROMnibus (ROM Omnibus)
 
-A utility that generates a SQLite database containing SHA1 hashes from Libretro's copy of the No-Intro dat
-files.
+A simple utility that processes ROM DAT files for SHA1 Hash Lookups and Filename Mapping.
