@@ -3,14 +3,15 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	models "github.com/UncleJunVIP/ROMnibus/models"
-	"github.com/UncleJunVIP/ROMnibus/utils"
-	_ "github.com/mattn/go-sqlite3"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	models "github.com/UncleJunVIP/ROMnibus/models"
+	"github.com/UncleJunVIP/ROMnibus/utils"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
