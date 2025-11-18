@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	models "github.com/UncleJunVIP/ROMnibus/models"
+	"github.com/UncleJunVIP/ROMnibus/models"
 	"github.com/UncleJunVIP/ROMnibus/utils"
 	_ "github.com/mattn/go-sqlite3"
 )
